@@ -1,0 +1,166 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4",
+      "authorship_tag": "ABX9TyNRNYA0C7a8KI8mKW8zytBA",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/cristianzucconi2-web/iatoarts/blob/main/iatoarts8ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "SV9cc-HnupBI",
+        "outputId": "61ec1238-f5be-45fa-e9cb-754033a50a29"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Requirement already satisfied: mido in /usr/local/lib/python3.12/dist-packages (1.3.3)\n",
+            "Requirement already satisfied: packaging in /usr/local/lib/python3.12/dist-packages (from mido) (26.0)\n",
+            "L'ESPLOSIONE È PRONTA: Scarica 'sinfonia_esplosiva.mid'\n"
+          ]
+        }
+      ],
+      "source": [
+        "# --- 1. SETUP ---\n",
+        "!pip install mido\n",
+        "import random\n",
+        "import mido\n",
+        "from mido import Message, MidiFile, MidiTrack\n",
+        "\n",
+        "# --- 2. CONFIGURAZIONE ORCHESTRALE ---\n",
+        "# Scala di Do Minore Naturale (più drammatica)\n",
+        "SCALA = [60, 62, 63, 65, 67, 68, 70, 72]\n",
+        "ACCORDI = {\n",
+        "    60: [60, 63, 67], # Do Min\n",
+        "    63: [63, 67, 70], # Mib Mag\n",
+        "    65: [65, 68, 72], # Fa Min\n",
+        "    67: [67, 71, 74], # Sol Mag (Dominante)\n",
+        "}\n",
+        "\n",
+        "POPOLAZIONE_SIZE = 120\n",
+        "GENERAZIONI = 100\n",
+        "BLOCCHI = 8\n",
+        "\n",
+        "# --- 3. FITNESS SINFONICA ---\n",
+        "def calcola_fitness_sinfonica(individuo):\n",
+        "    melodia = individuo[0]\n",
+        "    basso = individuo[1]\n",
+        "    voto = 0\n",
+        "\n",
+        "    for i in range(len(melodia)):\n",
+        "        # Coerenza col Basso (Fondamentale per l'effetto orchestra)\n",
+        "        if (melodia[i] - basso[i]) % 12 in [0, 3, 7]: voto += 70\n",
+        "\n",
+        "        # Movimento contrario (Tecnica di Beethoven)\n",
+        "        if i < len(melodia) - 1:\n",
+        "            mov_melodia = melodia[i+1] - melodia[i]\n",
+        "            mov_basso = basso[i+1] - basso[i]\n",
+        "            if (mov_melodia > 0 and mov_basso < 0) or (mov_melodia < 0 and mov_basso > 0):\n",
+        "                voto += 100 # Bonus enorme per contrappunto\n",
+        "\n",
+        "            if abs(mov_melodia) > 7: voto -= 150 # No salti folli\n",
+        "            if mov_melodia == 0: voto -= 40     # No monotonia\n",
+        "\n",
+        "    return voto\n",
+        "\n",
+        "# --- 4. MOTORE ---\n",
+        "def genera_movimento():\n",
+        "    popol = [[ [random.choice(SCALA) for _ in range(32)], [random.choice([36, 43, 48, 39]) for _ in range(32)] ] for _ in range(POPOLAZIONE_SIZE)]\n",
+        "    for g in range(GENERAZIONI):\n",
+        "        popol = sorted(popol, key=calcola_fitness_sinfonica, reverse=True)\n",
+        "        top = popol[:20]\n",
+        "        nuova = top.copy()\n",
+        "        while len(nuova) < POPOLAZIONE_SIZE:\n",
+        "            p1, p2 = random.choice(top), random.choice(top)\n",
+        "            t = random.randint(1, 31)\n",
+        "            f = [p1[0][:t] + p2[0][t:], p1[1][:t] + p2[1][t:]]\n",
+        "            if random.random() < 0.2: f[0][random.randint(0,31)] = random.choice(SCALA)\n",
+        "            nuova.append(f)\n",
+        "        popol = nuova\n",
+        "    return popol[0]\n",
+        "\n",
+        "# --- 5. COMPOSIZIONE ---\n",
+        "melodia_f, basso_f = [], []\n",
+        "for _ in range(BLOCCHI):\n",
+        "    m = genera_movimento()\n",
+        "    melodia_f.extend(m[0]); basso_f.extend(m[1])\n",
+        "\n",
+        "# --- 6. MIDI MASTER ---\n",
+        "mid = MidiFile()\n",
+        "tracce = {\n",
+        "    'Violini': (48, 0),    # String Ensemble\n",
+        "    'Ottoni': (61, 0),     # Brass Section\n",
+        "    'Bassi': (43, 0),      # Contrabass\n",
+        "    'Timpani': (47, 0),    # Timpani\n",
+        "    'Piano': (0, 0)        # Grand Piano\n",
+        "}\n",
+        "midi_tracks = {}\n",
+        "for nome, (prog, _) in tracce.items():\n",
+        "    t = MidiTrack()\n",
+        "    t.append(Message('program_change', program=prog, time=0))\n",
+        "    midi_tracks[nome] = t\n",
+        "    mid.tracks.append(t)\n",
+        "\n",
+        "for i in range(len(melodia_f)):\n",
+        "    # Dinamica: accento sul primo tempo\n",
+        "    vel = 110 if i % 4 == 0 else 85\n",
+        "    t = 480 # Durata quarto\n",
+        "\n",
+        "    # VIOLINI: Melodia + Terza sopra\n",
+        "    midi_tracks['Violini'].append(Message('note_on', note=melodia_f[i], velocity=vel, time=0))\n",
+        "    midi_tracks['Violini'].append(Message('note_on', note=melodia_f[i]+4, velocity=vel-20, time=0))\n",
+        "    midi_tracks['Violini'].append(Message('note_off', note=melodia_f[i], velocity=vel, time=t))\n",
+        "    midi_tracks['Violini'].append(Message('note_off', note=melodia_f[i]+4, velocity=vel-20, time=0))\n",
+        "\n",
+        "    # OTTONI: Accordi pieni sui tempi forti\n",
+        "    if i % 2 == 0:\n",
+        "        root = melodia_f[i]\n",
+        "        accordo = ACCORDI.get(root, [root, root+3, root+7])\n",
+        "        for n in accordo:\n",
+        "            midi_tracks['Ottoni'].append(Message('note_on', note=n-12, velocity=vel-10, time=0))\n",
+        "        midi_tracks['Ottoni'].append(Message('note_off', note=accordo[0]-12, velocity=0, time=t))\n",
+        "        for n in accordo[1:]:\n",
+        "            midi_tracks['Ottoni'].append(Message('note_off', note=n-12, velocity=0, time=0))\n",
+        "\n",
+        "    # BASSI E TIMPANI: Potenza pura\n",
+        "    midi_tracks['Bassi'].append(Message('note_on', note=basso_f[i], velocity=120, time=0))\n",
+        "    midi_tracks['Bassi'].append(Message('note_off', note=basso_f[i], velocity=120, time=t))\n",
+        "    if i % 4 == 0:\n",
+        "        midi_tracks['Timpani'].append(Message('note_on', note=basso_f[i]-12, velocity=127, time=0))\n",
+        "        midi_tracks['Timpani'].append(Message('note_off', note=basso_f[i]-12, velocity=127, time=t))\n",
+        "\n",
+        "mid.save('sinfonia_esplosiva.mid')\n",
+        "print(\"L'ESPLOSIONE È PRONTA: Scarica 'sinfonia_esplosiva.mid'\")"
+      ]
+    }
+  ]
+}
