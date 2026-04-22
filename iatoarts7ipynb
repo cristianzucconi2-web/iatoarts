@@ -1,0 +1,147 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4",
+      "authorship_tag": "ABX9TyMYMRYECjRFDFN+rohiFcgJ",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/cristianzucconi2-web/iatoarts/blob/main/iatoarts7ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "SV9cc-HnupBI",
+        "outputId": "61ec1238-f5be-45fa-e9cb-754033a50a29"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Requirement already satisfied: mido in /usr/local/lib/python3.12/dist-packages (1.3.3)\n",
+            "Requirement already satisfied: packaging in /usr/local/lib/python3.12/dist-packages (from mido) (26.0)\n",
+            "L'ESPLOSIONE È PRONTA: Scarica 'sinfonia_esplosiva.mid'\n"
+          ]
+        }
+      ],
+      "source": [
+        "# --- 1. SETUP ---\n",
+        "!pip install mido\n",
+        "import random\n",
+        "import mido\n",
+        "from mido import Message, MidiFile, MidiTrack\n",
+        "\n",
+        "# --- 2. CONFIGURAZIONE ORCHESTRALE COMPLETA ---\n",
+        "SCALA = [57, 60, 62, 64, 65, 67, 69, 72] # La Minore\n",
+        "ORCHESTRA = {\n",
+        "    'Violini': {'prog': 48, 'range': (64, 84), 'prob': 0.8},\n",
+        "    'Arpa':    {'prog': 46, 'range': (60, 84), 'prob': 0.5},\n",
+        "    'Ottoni':  {'prog': 61, 'range': (48, 72), 'prob': 0.4},\n",
+        "    'Celli':   {'prog': 42, 'range': (36, 52), 'prob': 0.7},\n",
+        "    'Legni':   {'prog': 68, 'range': (60, 80), 'prob': 0.3}\n",
+        "}\n",
+        "\n",
+        "POPOLAZIONE_SIZE = 100\n",
+        "GENERAZIONI = 80\n",
+        "BLOCCHI = 8\n",
+        "\n",
+        "# --- 3. FITNESS FLESSIBILE ---\n",
+        "def calcola_fitness_orchestra(individuo):\n",
+        "    voto = 100\n",
+        "    for strum, note in individuo.items():\n",
+        "        for i in range(len(note)-1):\n",
+        "            dist = abs(note[i] - note[i+1])\n",
+        "            if dist <= 2: voto += 10 # Fluidità\n",
+        "            if dist > 12: voto -= 50 # No salti folli\n",
+        "    return voto\n",
+        "\n",
+        "# --- 4. MOTORE DI GENERAZIONE ---\n",
+        "def genera_movimento_variabile():\n",
+        "    # Decidiamo quali strumenti \"suonano\" in questo blocco\n",
+        "    strumenti_attivi = [s for s in ORCHESTRA if random.random() < ORCHESTRA[s]['prob']]\n",
+        "    if not strumenti_attivi: strumenti_attivi = ['Violini'] # Almeno uno deve suonare\n",
+        "\n",
+        "    popol = []\n",
+        "    for _ in range(POPOLAZIONE_SIZE):\n",
+        "        ind = {s: [random.randint(ORCHESTRA[s]['range'][0], ORCHESTRA[s]['range'][1]) for _ in range(32)] for s in strumenti_attivi}\n",
+        "        popol.append(ind)\n",
+        "\n",
+        "    for g in range(GENERAZIONI):\n",
+        "        popol = sorted(popol, key=calcola_fitness_orchestra, reverse=True)\n",
+        "        top = popol[:15]\n",
+        "        nuova = top.copy()\n",
+        "        while len(nuova) < POPOLAZIONE_SIZE:\n",
+        "            p1, p2 = random.choice(top), random.choice(top)\n",
+        "            punto = random.randint(1, 31)\n",
+        "            figlio = {s: p1[s][:punto] + p2[s][punto:] for s in strumenti_attivi}\n",
+        "            # Mutazione\n",
+        "            if random.random() < 0.2:\n",
+        "                s_mut = random.choice(strumenti_attivi)\n",
+        "                figlio[s_mut][random.randint(0, 31)] = random.randint(ORCHESTRA[s_mut]['range'][0], ORCHESTRA[s_mut]['range'][1])\n",
+        "            nuova.append(figlio)\n",
+        "        popol = nuova\n",
+        "    return popol[0]\n",
+        "\n",
+        "# --- 5. COMPOSIZIONE MASTER ---\n",
+        "canzone_master = {s: [] for s in ORCHESTRA}\n",
+        "\n",
+        "print(\"Generazione 'Multiverse Orchestra' in corso...\")\n",
+        "for b in range(BLOCCHI):\n",
+        "    blocco_vincitore = genera_movimento_variabile()\n",
+        "    for s in ORCHESTRA:\n",
+        "        if s in blocco_vincitore:\n",
+        "            canzone_master[s].extend(blocco_vincitore[s])\n",
+        "        else:\n",
+        "            canzone_master[s].extend([0] * 32) # Silenzio se lo strumento non è attivo\n",
+        "    print(f\"Blocco {b+1} creato.\")\n",
+        "\n",
+        "# --- 6. MIDI EXPORT ---\n",
+        "mid = MidiFile()\n",
+        "tracks = {}\n",
+        "for s in ORCHESTRA:\n",
+        "    t = MidiTrack()\n",
+        "    t.append(Message('program_change', program=ORCHESTRA[s]['prog'], time=0))\n",
+        "    tracks[s] = t\n",
+        "    mid.tracks.append(t)\n",
+        "\n",
+        "for i in range(len(canzone_master['Violini'])):\n",
+        "    for s in ORCHESTRA:\n",
+        "        nota = canzone_master[s][i]\n",
+        "        if nota != 0: # Suona solo se non è silenzio\n",
+        "            tracks[s].append(Message('note_on', note=nota, velocity=80, time=0))\n",
+        "            tracks[s].append(Message('note_off', note=nota, velocity=80, time=480))\n",
+        "        else:\n",
+        "            # Importante: mantenere il tempo anche nel silenzio\n",
+        "            tracks[s].append(Message('note_off', note=0, velocity=0, time=480))\n",
+        "\n",
+        "mid.save('orchestra_variabile.mid')\n",
+        "print(\"\\nFILE PRONTO: Ogni volta che lo esegui, l'orchestrazione cambierà!\")"
+      ]
+    }
+  ]
+}
