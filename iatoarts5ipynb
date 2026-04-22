@@ -1,0 +1,152 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4",
+      "authorship_tag": "ABX9TyONNw7cW59rkMlWIrbOdDeQ",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/cristianzucconi2-web/iatoarts/blob/main/iatoarts5ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "SV9cc-HnupBI",
+        "outputId": "61ec1238-f5be-45fa-e9cb-754033a50a29"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Requirement already satisfied: mido in /usr/local/lib/python3.12/dist-packages (1.3.3)\n",
+            "Requirement already satisfied: packaging in /usr/local/lib/python3.12/dist-packages (from mido) (26.0)\n",
+            "L'ESPLOSIONE È PRONTA: Scarica 'sinfonia_esplosiva.mid'\n"
+          ]
+        }
+      ],
+      "source": [
+        "# --- 1. SETUP ---\n",
+        "!pip install mido\n",
+        "import random\n",
+        "import mido\n",
+        "from mido import Message, MidiFile, MidiTrack\n",
+        "\n",
+        "# --- 2. CONFIGURAZIONE \"ETEREA\" ---\n",
+        "SCALA = [57, 59, 60, 62, 64, 65, 67, 69, 71, 72] # La Minore estesa\n",
+        "POPOLAZIONE_SIZE = 150\n",
+        "GENERAZIONI = 120\n",
+        "BLOCCHI = 8 # Circa 2 minuti di musica fluida\n",
+        "\n",
+        "# --- 3. FITNESS DELLA FLUIDITÀ ---\n",
+        "def calcola_fitness_fluida(individuo):\n",
+        "    melodia = individuo[0]\n",
+        "    basso = individuo[1]\n",
+        "    voto = 0\n",
+        "\n",
+        "    for i in range(len(melodia)):\n",
+        "        # Consonanza tra melodia e basso\n",
+        "        if abs(melodia[i] - basso[i]) % 12 in [0, 3, 4, 7, 8, 9]: voto += 80\n",
+        "\n",
+        "        if i < len(melodia) - 1:\n",
+        "            dist = abs(melodia[i] - melodia[i+1])\n",
+        "            # PREMIO MASSIMO: Passaggi di un solo tono (fluido come la seta)\n",
+        "            if dist == 1 or dist == 2: voto += 150\n",
+        "            # PENALITÀ: Salti medi (lo scatto che odi)\n",
+        "            if 3 <= dist <= 6: voto -= 50\n",
+        "            # PENALITÀ ESTREMA: Salti grandi\n",
+        "            if dist > 7: voto -= 200\n",
+        "            # Evitiamo la monotonia\n",
+        "            if dist == 0: voto -= 30\n",
+        "\n",
+        "    return voto\n",
+        "\n",
+        "# --- 4. MOTORE ---\n",
+        "def genera_movimento_fluido():\n",
+        "    popol = [[ [random.choice(SCALA) for _ in range(32)], [random.choice([33, 40, 45, 48]) for _ in range(32)] ] for _ in range(POPOLAZIONE_SIZE)]\n",
+        "    for g in range(GENERAZIONI):\n",
+        "        popol = sorted(popol, key=calcola_fitness_fluida, reverse=True)\n",
+        "        top = popol[:25]\n",
+        "        nuova = top.copy()\n",
+        "        while len(nuova) < POPOLAZIONE_SIZE:\n",
+        "            p1, p2 = random.choice(top), random.choice(top)\n",
+        "            t = random.randint(1, 31)\n",
+        "            f = [p1[0][:t] + p2[0][t:], p1[1][:t] + p2[1][t:]]\n",
+        "            if random.random() < 0.15: f[0][random.randint(0,31)] = random.choice(SCALA)\n",
+        "            nuova.append(f)\n",
+        "        popol = nuova\n",
+        "    return popol[0]\n",
+        "\n",
+        "# --- 5. COMPOSIZIONE ---\n",
+        "mel_f, bas_f = [], []\n",
+        "for _ in range(BLOCCHI):\n",
+        "    m = genera_movimento_fluido()\n",
+        "    mel_f.extend(m[0]); bas_f.extend(m[1])\n",
+        "\n",
+        "# --- 6. MIDI MASTER (ORCHESTRA COMPLETA) ---\n",
+        "mid = MidiFile()\n",
+        "# Strumenti: Violini (48), Viole (41), Celli (42), Arpa (46)\n",
+        "tracce_info = {'Violini': 48, 'Viole': 41, 'Celli': 42, 'Arpa': 46}\n",
+        "tracks = {}\n",
+        "for nome, prog in tracce_info.items():\n",
+        "    t = MidiTrack()\n",
+        "    t.append(Message('program_change', program=prog, time=0))\n",
+        "    tracks[nome] = t\n",
+        "    mid.tracks.append(t)\n",
+        "\n",
+        "tempo_nota = 480 # Un quarto\n",
+        "\n",
+        "for i in range(len(mel_f)):\n",
+        "    v = mel_f[i]\n",
+        "    b = bas_f[i]\n",
+        "\n",
+        "    # VIOLINI: Melodia principale (legata: nota finisce un po' dopo l'inizio della successiva)\n",
+        "    tracks['Violini'].append(Message('note_on', note=v+12, velocity=80, time=0))\n",
+        "    tracks['Violini'].append(Message('note_off', note=v+12, velocity=80, time=tempo_nota))\n",
+        "\n",
+        "    # VIOLE: Armonia di riempimento (note più lunghe)\n",
+        "    if i % 2 == 0:\n",
+        "        tracks['Viole'].append(Message('note_on', note=v, velocity=60, time=0))\n",
+        "        tracks['Viole'].append(Message('note_off', note=v, velocity=60, time=tempo_nota * 2))\n",
+        "\n",
+        "    # CELLI: Basso profondo e morbido\n",
+        "    tracks['Celli'].append(Message('note_on', note=b, velocity=75, time=0))\n",
+        "    tracks['Celli'].append(Message('note_off', note=b, velocity=75, time=tempo_nota))\n",
+        "\n",
+        "    # ARPA: Arpeggio celestiale (4 note veloci per ogni battito del piano)\n",
+        "    arpeggio = [b+24, v, v+4, v+7]\n",
+        "    durata_arpa = tempo_nota // 4\n",
+        "    for nota_a in arpeggio:\n",
+        "        tracks['Arpa'].append(Message('note_on', note=nota_a, velocity=55, time=0))\n",
+        "        tracks['Arpa'].append(Message('note_off', note=nota_a, velocity=55, time=durata_arpa))\n",
+        "\n",
+        "mid.save('eternal_symphony.mid')\n",
+        "print(\"SINFONIA COMPLETATA: Scarica 'eternal_symphony.mid'\")"
+      ]
+    }
+  ]
+}
